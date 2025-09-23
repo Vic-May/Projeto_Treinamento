@@ -1,0 +1,248 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct usuário_MV {
+    char nome[100];
+    char data_reuniao[11];  // Formato: DD/MM/AAAA
+    char horario[6];        // Formato: HH:MM
+    char local[50];         // Local da reunião
+    char assunto[100];      // Assunto da reunião
+} usuário_MV;
+
+#define ARQUIVO_REGISTROS "reunioes.bat"
+
+void cabecalho() {
+    printf("\n=== CALENDARIO DE REUNIOES ===\n");
+}
+
+void limparBuffer() {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
+}
+
+int salvarRegistros(struct usuário_MV *registros, int contador) {
+    FILE *arquivo = fopen(ARQUIVO_REGISTROS, "wb");
+    if(arquivo == NULL) {
+        return 0;
+    }
+    
+    fwrite(&contador, sizeof(int), 1, arquivo);
+    fwrite(registros, sizeof(struct usuário_MV), contador, arquivo);
+    
+    fclose(arquivo);
+    return 1;
+}
+
+int carregarRegistros(struct usuário_MV **registros, int *contador, int *capacidade) {
+    FILE *arquivo = fopen(ARQUIVO_REGISTROS, "rb");
+    if(arquivo == NULL) {
+        return 0;
+    }
+    
+    fread(contador, sizeof(int), 1, arquivo);
+    *capacidade = (*contador < 5) ? 5 : *contador + 5;
+    *registros = malloc(*capacidade * sizeof(struct usuário_MV));
+    
+    if(*registros == NULL) {
+        fclose(arquivo);
+        return 0;
+    }
+    
+    fread(*registros, sizeof(struct usuário_MV), *contador, arquivo);
+    fclose(arquivo);
+    return 1;
+}
+
+void agendarReuniao(struct usuário_MV **registros, int *contador, int *capacidade) {
+    cabecalho();
+    printf("AGENDAR NOVA REUNIAO\n\n");
+    
+    if(*contador >= *capacidade) {
+        *capacidade += 5;
+        *registros = realloc(*registros, *capacidade * sizeof(struct usuário_MV));
+        if(*registros == NULL) {
+            printf("Erro ao alocar memoria!\n");
+            return;
+        }
+    }
+    
+    printf("Nome do participante: ");
+    limparBuffer();
+    fgets((*registros)[*contador].nome, 100, stdin);
+    (*registros)[*contador].nome[strcspn((*registros)[*contador].nome, "\n")] = 0;
+    
+    printf("Data da reuniao (DD/MM/AAAA): ");
+    fgets((*registros)[*contador].data_reuniao, 11, stdin);
+    limparBuffer();
+    
+    printf("Horario (HH:MM): ");
+    fgets((*registros)[*contador].horario, 6, stdin);
+    limparBuffer();
+    
+    printf("Local: ");
+    fgets((*registros)[*contador].local, 50, stdin);
+    (*registros)[*contador].local[strcspn((*registros)[*contador].local, "\n")] = 0;
+    
+    printf("Assunto: ");
+    fgets((*registros)[*contador].assunto, 100, stdin);
+    (*registros)[*contador].assunto[strcspn((*registros)[*contador].assunto, "\n")] = 0;
+    
+    (*contador)++;
+    printf("\nReuniao agendada com sucesso!\n");
+}
+
+void listarReunioes(struct usuário_MV *registros, int contador) {
+    cabecalho();
+    printf("LISTA DE REUNIOES AGENDADAS\n\n");
+    
+    if(contador == 0) {
+        printf("Nenhuma reuniao agendada.\n");
+        return;
+    }
+    
+    for(int i = 0; i < contador; i++) {
+        printf("Reuniao %d:\n", i + 1);
+        printf("  Participante: %s\n", registros[i].nome);
+        printf("  Data: %s\n", registros[i].data_reuniao);
+        printf("  Horario: %s\n", registros[i].horario);
+        printf("  Local: %s\n", registros[i].local);
+        printf("  Assunto: %s\n", registros[i].assunto);
+        printf("  --------------------\n");
+    }
+}
+
+void cancelarReuniao(struct usuário_MV *registros, int *contador) {
+    cabecalho();
+    printf("CANCELAR REUNIAO\n\n");
+    
+    if(*contador == 0) {
+        printf("Nenhuma reuniao agendada.\n");
+        return;
+    }
+    
+    listarReunioes(registros, *contador);
+    
+    int indice;
+    printf("\nDigite o numero da reuniao que deseja cancelar: ");
+    scanf("%d", &indice);
+    
+    if(indice < 1 || indice > *contador) {
+        printf("Numero invalido!\n");
+        return;
+    }
+    
+    indice--; // Ajustar para índice do array
+    
+    for(int i = indice; i < *contador - 1; i++) {
+        registros[i] = registros[i + 1];
+    }
+    
+    (*contador)--;
+    printf("Reuniao cancelada com sucesso!\n");
+}
+
+void reunioesDoMes(struct usuário_MV *registros, int contador) {
+    cabecalho();
+    printf("REUNIOES DO MES\n\n");
+    
+    if(contador == 0) {
+        printf("Nenhuma reuniao agendada.\n");
+        return;
+    }
+    
+    char mes[3];
+    printf("Digite o mes (MM) para consulta: ");
+    scanf("%s", mes);
+    
+    printf("\nReunioes agendadas para o mes %s:\n", mes);
+    int encontradas = 0;
+    
+    for(int i = 0; i < contador; i++) {
+        // Extrair mês da data (posições 3-4: DD/MM/AAAA)
+        if(registros[i].data_reuniao[3] == mes[0] && registros[i].data_reuniao[4] == mes[1]) {
+            printf("  %s - %s - %s - %s\n", 
+                   registros[i].data_reuniao, 
+                   registros[i].horario,
+                   registros[i].nome,
+                   registros[i].assunto);
+            encontradas++;
+        }
+    }
+    
+    if(encontradas == 0) {
+        printf("Nenhuma reuniao encontrada para este mes.\n");
+    }
+}
+
+int menuPrincipal(int contador) {
+    cabecalho();
+    printf("Reunioes Agendadas: %d\n\n", contador);
+    
+    printf("1. Agendar nova reuniao\n");
+    printf("2. Listar todas as reunioes\n");
+    printf("3. Cancelar reuniao\n");
+    printf("4. Consultar reunioes do mes\n");
+    printf("5. Sair do programa\n");
+    
+    int opcao;
+    printf("\nEscolha uma opcao: ");
+    scanf("%d", &opcao);
+    return opcao;
+}
+
+int main() {
+    struct usuário_MV *registros = malloc(5 * sizeof(struct usuário_MV));
+    int contador = 0;
+    int capacidade = 5;
+    int executando = 1;
+
+    // Carregar dados existentes
+    if(carregarRegistros(&registros, &contador, &capacidade)) {
+        printf("Dados carregados com sucesso!\n");
+    }
+
+    while(executando) {
+        int opcao = menuPrincipal(contador);
+        
+        switch(opcao) {
+            case 1:
+                agendarReuniao(&registros, &contador, &capacidade);
+                break;
+            case 2:
+                listarReunioes(registros, contador);
+                break;
+            case 3:
+                cancelarReuniao(registros, &contador);
+                break;
+            case 4:
+                reunioesDoMes(registros, contador);
+                break;
+            case 5:
+                executando = 0;
+                break;
+            default:
+                printf("Opcao invalida!\n");
+        }
+        
+        // Salvar dados após cada operação
+        if(opcao != 5) {
+            if(salvarRegistros(registros, contador)) {
+                printf("Dados salvos com sucesso!\n");
+            } else {
+                printf("Erro ao salvar dados!\n");
+            }
+        }
+        
+        printf("\nPressione Enter para continuar...");
+        limparBuffer();
+        getchar();
+    }
+
+    // Salvar dados antes de sair
+    salvarRegistros(registros, contador);
+    free(registros);
+    printf("Programa encerrado. Ate mais!\n");
+    
+    return 0;
+}
